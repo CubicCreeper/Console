@@ -670,6 +670,17 @@ namespace Console
             smoothTeleportCoroutine = null;
         }
 
+        public static IEnumerator AssetSmoothTeleport(ConsoleAsset asset, Vector3 position, float time)
+        {
+            float startTime = Time.time;
+            Vector3 startPosition = asset.assetObject.transform.position;
+            while (Time.time < startTime + time)
+            {
+                asset.SetPosition(Vector3.Lerp(startPosition, position, (Time.time - startTime) / time));
+                yield return null;
+            }
+        }
+
         public static Coroutine shakeCoroutine;
         public static IEnumerator Shake(float strength, float time, bool constant)
         {
@@ -1038,6 +1049,16 @@ namespace Console
                         instance.StartCoroutine(
                             ModifyConsoleAsset(PositionAssetId,
                             asset => asset.SetPosition(TargetPosition))
+                        );
+                        break;
+                    case "asset-smoothtp":
+                        int SmoothAssetId = (int)args[1];
+                        Vector3 TargetSmoothPosition = (Vector3)args[2];
+                        float time = (float)args[3];
+
+                        instance.StartCoroutine(
+                            ModifyConsoleAsset(SmoothAssetId, asset => 
+                            instance.StartCoroutine(AssetSmoothTeleport(asset, TargetSmoothPosition, time)))
                         );
                         break;
                     case "asset-setlocalposition":
