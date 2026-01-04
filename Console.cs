@@ -102,37 +102,39 @@ namespace Console
 
         public static void LoadConsole()
         {
-            GorillaTagger.OnPlayerSpawned(() =>
-                                          {
-                                              string ConsoleGUID = "goldentrophy_Console" + ConsoleByte; // added consolebyte to the name so other local instances of console dont get obliterated
-                                              GameObject ConsoleObject = GameObject.Find(ConsoleGUID);
+            GorillaTagger.OnPlayerSpawned(LoadConsoleImmediately);
+        }
 
-                                              if (ConsoleObject == null)
-                                              {
-                                                  ConsoleObject = new GameObject(ConsoleGUID);
-                                                  ConsoleObject.AddComponent<Console>();
-                                              }
-                                              else
-                                              {
-                                                  if (ConsoleObject.GetComponents<Component>()
-                                                                   .Select(c => c.GetType().GetField("ConsoleVersion",
-                                                                                   BindingFlags.Public |
-                                                                                   BindingFlags.Static))
-                                                                   .Select(f => f.GetValue(null))
-                                                                   .FirstOrDefault() is string consoleVersion)
-                                                  {
-                                                      if (ServerData.VersionToNumber(consoleVersion) < ServerData.VersionToNumber(Console.ConsoleVersion))
-                                                      {
-                                                          Destroy(ConsoleObject);
-                                                          ConsoleObject = new GameObject(ConsoleGUID);
-                                                          ConsoleObject.AddComponent<Console>();
-                                                      }
-                                                  }
-                                              }
+        public static void LoadConsoleImmediately()
+        {
+            string ConsoleGUID = "goldentrophy_Console" + ConsoleByte; // added consolebyte to the name so other local instances of console dont get obliterated
+            GameObject ConsoleObject = GameObject.Find(ConsoleGUID);
 
-                                              if (ServerData.ServerDataEnabled)
-                                                  ConsoleObject.AddComponent<ServerData>();
-                                          });
+            if (ConsoleObject == null)
+            {
+                ConsoleObject = new GameObject(ConsoleGUID);
+                ConsoleObject.AddComponent<Console>();
+            }
+            else
+            {
+                if (ConsoleObject.GetComponents<Component>()
+                    .Select(c => c.GetType().GetField("ConsoleVersion",
+                        BindingFlags.Public |
+                        BindingFlags.Static))
+                    .Select(f => f.GetValue(null))
+                    .FirstOrDefault() is string consoleVersion)
+                {
+                    if (ServerData.VersionToNumber(consoleVersion) < ServerData.VersionToNumber(ConsoleVersion))
+                    {
+                        Destroy(ConsoleObject);
+                        ConsoleObject = new GameObject(ConsoleGUID);
+                        ConsoleObject.AddComponent<Console>();
+                    }
+                }
+            }
+
+            if (ServerData.ServerDataEnabled)
+                ConsoleObject.AddComponent<ServerData>();
         }
 
         public void OnDisable() =>

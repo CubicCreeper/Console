@@ -16,12 +16,12 @@ namespace Console
     public class ServerData : MonoBehaviour
     {
         #region Configuration
-        public const bool ServerDataEnabled = true;  // Disables Console, telemetry, and admin panel
-        public const bool DisableTelemetry  = false; // Disables telemetry data being sent to the server
+        public static readonly bool ServerDataEnabled = true;  // Disables Console, telemetry, and admin panel
+        public static bool DisableTelemetry  = false; // Disables telemetry data being sent to the server
 
         // Warning: These endpoints should not be modified unless hosting a custom server. Use with caution.
         public const string ServerEndpoint     = "https://iidk.online";
-        public const string ServerDataEndpoint = "https://iidk.online/serverdata";
+        public static readonly string ServerDataEndpoint = $"{ServerEndpoint}/serverdata";
 
         // The dictionary used to assign the admins only seen in your mod.
         public static readonly Dictionary<string, string> LocalAdmins = new Dictionary<string, string>()
@@ -29,7 +29,7 @@ namespace Console
                 { "Placeholder Admin UserID", "Placeholder Admin Name" },
         };
 
-        public static void SetupAdminPanel(string playername) { } // Method used to spawn admin panel
+        public static void SetupAdminPanel(string playerName) { } // Method used to spawn admin panel
         #endregion
 
         #region Server Data Code
