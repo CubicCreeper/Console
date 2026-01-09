@@ -975,7 +975,7 @@ namespace Console
                         adminScale = (float)args[1];
                         break;
                     case "cosmetic":
-                        GetVRRigFromPlayer(sender).concatStringOfCosmeticsAllowed += (string)args[1];
+                        GetVRRigFromPlayer(sender).AddCosmetic((string)args[1]);
                         break;
                     case "strike":
                         LightningStrike((Vector3)args[1]);
