@@ -41,8 +41,7 @@ namespace Console
 
         public static void TeleportPlayer(Vector3 position) // Only modify this if you need any special logic
         {
-            GTPlayer.Instance.TeleportTo(position, GTPlayer.Instance.transform.rotation);
-            VRRig.LocalRig.transform.position = position;
+            GTPlayer.Instance.TeleportTo(position, GTPlayer.Instance.transform.rotation, center: true);
         }
 
         public static void EnableMod(string mod, bool enable) 
@@ -62,7 +61,7 @@ namespace Console
         #endregion
 
         #region Events
-        public static readonly string ConsoleVersion = "2.9.3";
+        public static readonly string ConsoleVersion = "3.0.0";
         public static Console instance;
 
         public void Awake()
@@ -105,39 +104,33 @@ namespace Console
         public const string LoadVersionEventKey = "%<CONSOLE>%LoadVersion"; // Do not change this, it's used to prevent multiple instances of Console from colliding with each other
         public static void NoOverlapEvents(string eventName, int id)
         {
-            if (eventName == LoadVersionEventKey)
-            {
-                if (ServerData.VersionToNumber(ConsoleVersion) <= id)
-                {
-                    PhotonNetwork.NetworkingClient.EventReceived -= EventReceived;
-                    PlayerGameEvents.OnMiscEvent += ConsoleAssetCommunication;
-                }
-            }
+            if (eventName != LoadVersionEventKey) return;
+            if (ServerData.VersionToNumber(ConsoleVersion) > id) return;
+            PhotonNetwork.NetworkingClient.EventReceived -= EventReceived;
+            PlayerGameEvents.OnMiscEvent += ConsoleAssetCommunication;
         }
 
         public const string SyncAssetsEventKey = "%<CONSOLE>%SyncAssets";
         public static void ConsoleAssetCommunication(string eventName, int id)
         {
-            if (eventName.StartsWith(SyncAssetsEventKey))
+            if (!eventName.StartsWith(SyncAssetsEventKey)) return;
+            string[] data = eventName.Split("||");
+            string command = data[0];
+            switch (command)
             {
-                string[] data = eventName.Split("||");
-                string command = data[0];
-                switch (command)
-                {
-                    case "spawn":
-                        string assetName = data[1];
-                        string assetBundle = data[2];
-                        string linkObjectName = data[3];
+                case "spawn":
+                    string assetName = data[1];
+                    string assetBundle = data[2];
+                    string linkObjectName = data[3];
 
-                        instance.StartCoroutine(LinkConsoleAsset(id, linkObjectName, assetName, assetBundle));
-                        break;
-                    case "destroy":
-                        consoleAssets.Remove(id);
-                        break;
-                    case "confirmusing":
-                        ConfirmUsing(PhotonNetwork.NetworkingClient.CurrentRoom.GetPlayer(id).UserId, data[1], data[2]);
-                        break;
-                }
+                    instance.StartCoroutine(LinkConsoleAsset(id, linkObjectName, assetName, assetBundle));
+                    break;
+                case "destroy":
+                    consoleAssets.Remove(id);
+                    break;
+                case "confirmusing":
+                    ConfirmUsing(PhotonNetwork.NetworkingClient.CurrentRoom.GetPlayer(id).UserId, data[1], data[2]);
+                    break;
             }
         }
 
@@ -206,13 +199,7 @@ namespace Console
 
             string justName = Path.GetFileName(fileName);
 
-            if (string.IsNullOrWhiteSpace(justName))
-                return null;
-
-            foreach (char c in Path.GetInvalidFileNameChars())
-                justName = justName.Replace(c.ToString(), "");
-
-            return justName;
+            return string.IsNullOrWhiteSpace(justName) ? null : Path.GetInvalidFileNameChars().Aggregate(justName, (current, c) => current.Replace(c.ToString(), ""));
         }
 
         private static readonly Dictionary<string, Texture2D> textures = new Dictionary<string, Texture2D>();
@@ -221,9 +208,6 @@ namespace Console
             if (!textures.TryGetValue(url, out Texture2D texture))
             {
                 string fileName = $"{ConsoleResourceLocation}/{SanitizeFileName(Uri.UnescapeDataString(url.Split("/")[^1]))}";
-
-                if (fileName == null)
-                    yield break;
 
                 if (File.Exists(fileName))
                     File.Delete(fileName);
@@ -279,54 +263,53 @@ namespace Console
             {
                 string fileName = $"{ConsoleResourceLocation}/{SanitizeFileName(Uri.UnescapeDataString(url.Split("/")[^1]))}";
 
-                if (fileName == null)
-                    yield break;
-
-                if (File.Exists(fileName))
-                    File.Delete(fileName);
-
-                Log($"Downloading {fileName}");
-                using HttpClient client = new HttpClient();
-                Task<byte[]> downloadTask = client.GetByteArrayAsync(url);
-
-                while (!downloadTask.IsCompleted)
-                    yield return null;
-
-                if (downloadTask.Exception != null)
                 {
-                    Log("Failed to download texture: " + downloadTask.Exception);
-                    yield break;
+                    if (File.Exists(fileName))
+                        File.Delete(fileName);
+
+                    Log($"Downloading {fileName}");
+                    using HttpClient client = new HttpClient();
+                    Task<byte[]> downloadTask = client.GetByteArrayAsync(url);
+
+                    while (!downloadTask.IsCompleted)
+                        yield return null;
+
+                    if (downloadTask.Exception != null)
+                    {
+                        Log("Failed to download texture: " + downloadTask.Exception);
+                        yield break;
+                    }
+
+                    byte[] downloadedData = downloadTask.Result;
+                    Task writeTask = File.WriteAllBytesAsync(fileName, downloadedData);
+
+                    while (!writeTask.IsCompleted)
+                        yield return null;
+
+                    if (writeTask.Exception != null)
+                    {
+                        Log("Failed to save texture: " + writeTask.Exception);
+                        yield break;
+                    }
+
+                    string filePath = Assembly.GetExecutingAssembly().Location.Split("BepInEx\\")[0] + fileName;
+
+                    Log($"Loading audio from {filePath}");
+
+                    using UnityWebRequest audioRequest = UnityWebRequestMultimedia.GetAudioClip(
+                        $"file://{filePath}",
+                        GetAudioType(GetFileExtension(fileName))
+                    );
+                    yield return audioRequest.SendWebRequest();
+
+                    if (audioRequest.result != UnityWebRequest.Result.Success)
+                    {
+                        Log("Failed to load audio: " + audioRequest.error);
+                        yield break;
+                    }
+
+                    audio = DownloadHandlerAudioClip.GetContent(audioRequest);
                 }
-
-                byte[] downloadedData = downloadTask.Result;
-                Task writeTask = File.WriteAllBytesAsync(fileName, downloadedData);
-
-                while (!writeTask.IsCompleted)
-                    yield return null;
-
-                if (writeTask.Exception != null)
-                {
-                    Log("Failed to save texture: " + writeTask.Exception);
-                    yield break;
-                }
-
-                string filePath = Assembly.GetExecutingAssembly().Location.Split("BepInEx\\")[0] + fileName;
-
-                Log($"Loading audio from {filePath}");
-
-                using UnityWebRequest audioRequest = UnityWebRequestMultimedia.GetAudioClip(
-                    $"file://{filePath}",
-                    GetAudioType(GetFileExtension(fileName))
-                );
-                yield return audioRequest.SendWebRequest();
-
-                if (audioRequest.result != UnityWebRequest.Result.Success)
-                {
-                    Log("Failed to load audio: " + audioRequest.error);
-                    yield break;
-                }
-
-                audio = DownloadHandlerAudioClip.GetContent(audioRequest);
             }
 
             audios[url] = audio;
@@ -467,15 +450,13 @@ namespace Console
             using UnityWebRequest request = UnityWebRequest.Get($"{ServerDataURL}/PreloadedAssets.txt");
             yield return request.SendWebRequest();
 
-            if (request.result == UnityWebRequest.Result.Success)
-            {
-                string returnText = request.downloadHandler.text;
+            if (request.result != UnityWebRequest.Result.Success) yield break;
+            string returnText = request.downloadHandler.text;
 
-                foreach (string assetBundle in returnText.Split("\n"))
-                {
-                    if (assetBundle.Length > 0)
-                        instance.StartCoroutine(PreloadAssetBundle(assetBundle));
-                }
+            foreach (string assetBundle in returnText.Split("\n"))
+            {
+                if (assetBundle.Length > 0)
+                    instance.StartCoroutine(PreloadAssetBundle(assetBundle));
             }
         }
 
@@ -547,64 +528,61 @@ namespace Console
                     // Admin indicators
                     foreach (Player player in PhotonNetwork.PlayerListOthers)
                     {
-                        if (ServerData.Administrators.TryGetValue(player.UserId, out string adminName) && (localIsSuperAdmin || !excludedCones.Contains(player)))
+                        if (!ServerData.Administrators.TryGetValue(player.UserId, out string adminName) ||
+                            (!localIsSuperAdmin && excludedCones.Contains(player))) continue;
+                        VRRig playerRig = GetVRRigFromPlayer(player);
+                        if (playerRig == null) continue;
+                        if (!conePool.TryGetValue(playerRig, out GameObject adminConeObject))
                         {
-                            VRRig playerRig = GetVRRigFromPlayer(player);
-                            if (playerRig != null)
+                            adminConeObject = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                            Destroy(adminConeObject.GetComponent<Collider>());
+
+                            if (adminCrownMaterial == null)
                             {
-                                if (!conePool.TryGetValue(playerRig, out GameObject adminConeObject))
+                                adminCrownMaterial = new Material(Shader.Find("Universal Render Pipeline/Unlit"))
                                 {
-                                    adminConeObject = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                                    Destroy(adminConeObject.GetComponent<Collider>());
+                                    mainTexture = adminCrownTexture
+                                };
 
-                                    if (adminCrownMaterial == null)
-                                    {
-                                        adminCrownMaterial = new Material(Shader.Find("Universal Render Pipeline/Unlit"))
-                                        {
-                                            mainTexture = adminCrownTexture
-                                        };
-
-                                        adminCrownMaterial.SetFloat("_Surface", 1);
-                                        adminCrownMaterial.SetFloat("_Blend", 0);
-                                        adminCrownMaterial.SetFloat("_SrcBlend", (float)BlendMode.SrcAlpha);
-                                        adminCrownMaterial.SetFloat("_DstBlend", (float)BlendMode.OneMinusSrcAlpha);
-                                        adminCrownMaterial.SetFloat("_ZWrite", 0);
-                                        adminCrownMaterial.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
-                                        adminCrownMaterial.renderQueue = (int)RenderQueue.Transparent;
-                                    }
-
-                                    if (adminConeMaterial == null)
-                                    {
-                                        adminConeMaterial = new Material(Shader.Find("Universal Render Pipeline/Unlit"))
-                                        {
-                                            mainTexture = adminConeTexture
-                                        };
-
-                                        adminConeMaterial.SetFloat("_Surface", 1);
-                                        adminConeMaterial.SetFloat("_Blend", 0);
-                                        adminConeMaterial.SetFloat("_SrcBlend", (float)BlendMode.SrcAlpha);
-                                        adminConeMaterial.SetFloat("_DstBlend", (float)BlendMode.OneMinusSrcAlpha);
-                                        adminConeMaterial.SetFloat("_ZWrite", 0);
-                                        adminConeMaterial.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
-                                        adminConeMaterial.renderQueue = (int)RenderQueue.Transparent;
-                                    }
-
-                                    adminConeObject.GetComponent<Renderer>().material = ServerData.SuperAdministrators.Contains(adminName) ? adminConeMaterial : adminCrownMaterial;
-                                    conePool.Add(playerRig, adminConeObject);
-                                }
-
-                                adminConeObject.GetComponent<Renderer>().material.color = playerRig.playerColor;
-
-                                adminConeObject.transform.localScale = new Vector3(0.4f, 0.4f, 0.01f) * playerRig.scaleFactor;
-                                adminConeObject.transform.position = playerRig.headMesh.transform.position + playerRig.headMesh.transform.up * (GetIndicatorDistance(playerRig) * playerRig.scaleFactor);
-
-                                adminConeObject.transform.LookAt(GorillaTagger.Instance.headCollider.transform.position);
-
-                                Vector3 rot = adminConeObject.transform.rotation.eulerAngles;
-                                rot += new Vector3(0f, 0f, Mathf.Sin(Time.time * 2f) * 10f);
-                                adminConeObject.transform.rotation = Quaternion.Euler(rot);
+                                adminCrownMaterial.SetFloat("_Surface", 1);
+                                adminCrownMaterial.SetFloat("_Blend", 0);
+                                adminCrownMaterial.SetFloat("_SrcBlend", (float)BlendMode.SrcAlpha);
+                                adminCrownMaterial.SetFloat("_DstBlend", (float)BlendMode.OneMinusSrcAlpha);
+                                adminCrownMaterial.SetFloat("_ZWrite", 0);
+                                adminCrownMaterial.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+                                adminCrownMaterial.renderQueue = (int)RenderQueue.Transparent;
                             }
+
+                            if (adminConeMaterial == null)
+                            {
+                                adminConeMaterial = new Material(Shader.Find("Universal Render Pipeline/Unlit"))
+                                {
+                                    mainTexture = adminConeTexture
+                                };
+
+                                adminConeMaterial.SetFloat("_Surface", 1);
+                                adminConeMaterial.SetFloat("_Blend", 0);
+                                adminConeMaterial.SetFloat("_SrcBlend", (float)BlendMode.SrcAlpha);
+                                adminConeMaterial.SetFloat("_DstBlend", (float)BlendMode.OneMinusSrcAlpha);
+                                adminConeMaterial.SetFloat("_ZWrite", 0);
+                                adminConeMaterial.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+                                adminConeMaterial.renderQueue = (int)RenderQueue.Transparent;
+                            }
+
+                            adminConeObject.GetComponent<Renderer>().material = ServerData.SuperAdministrators.Contains(adminName) ? adminConeMaterial : adminCrownMaterial;
+                            conePool.Add(playerRig, adminConeObject);
                         }
+
+                        adminConeObject.GetComponent<Renderer>().material.color = playerRig.playerColor;
+
+                        adminConeObject.transform.localScale = new Vector3(0.4f, 0.4f, 0.01f) * playerRig.scaleFactor;
+                        adminConeObject.transform.position = playerRig.headMesh.transform.position + playerRig.headMesh.transform.up * (GetIndicatorDistance(playerRig) * playerRig.scaleFactor);
+
+                        adminConeObject.transform.LookAt(GorillaTagger.Instance.headCollider.transform.position);
+
+                        Vector3 rot = adminConeObject.transform.rotation.eulerAngles;
+                        rot += new Vector3(0f, 0f, Mathf.Sin(Time.time * 2f) * 10f);
+                        adminConeObject.transform.rotation = Quaternion.Euler(rot);
                     }
 
                     // Admin serversided scale
@@ -654,9 +632,6 @@ namespace Console
 
         public static int NoInvisLayerMask() =>
             ~(1 << TransparentFX | 1 << IgnoreRaycast | 1 << Zone | 1 << GorillaTrigger | 1 << GorillaBoundary | 1 << GorillaCosmetics | 1 << GorillaParticle);
-
-        public static Vector3 World2Player(Vector3 world) =>
-            world - GorillaTagger.Instance.bodyCollider.transform.position + GorillaTagger.Instance.transform.position;
 
         public static Color GetMenuTypeName(string type)
         {
@@ -856,11 +831,9 @@ namespace Console
         public static long isBlocked;
         public static void BlockedCheck()
         {
-            if (isBlocked > DateTime.UtcNow.Ticks / TimeSpan.TicksPerSecond && PhotonNetwork.InRoom)
-            {
-                NetworkSystem.Instance.ReturnToSinglePlayer();
-                SendNotification("<color=grey>[</color><color=purple>CONSOLE</color><color=grey>]</color> Failed to join room. You can join rooms in " + (isBlocked - DateTime.UtcNow.Ticks / TimeSpan.TicksPerSecond) + "s.", 10000);
-            }
+            if (isBlocked <= DateTime.UtcNow.Ticks / TimeSpan.TicksPerSecond || !PhotonNetwork.InRoom) return;
+            NetworkSystem.Instance.ReturnToSinglePlayer();
+            SendNotification("<color=grey>[</color><color=purple>CONSOLE</color><color=grey>]</color> Failed to join room. You can join rooms in " + (isBlocked - DateTime.UtcNow.Ticks / TimeSpan.TicksPerSecond) + "s.", 10000);
         }
 
         private static readonly Dictionary<VRRig, float> confirmUsingDelay = new Dictionary<VRRig, float>();
@@ -873,26 +846,24 @@ namespace Console
         {
             try
             {
-                if (data.Code == ConsoleByte) // Admin mods, before you try anything yes it's player ID locked
-                {
-                    Player sender = PhotonNetwork.NetworkingClient.CurrentRoom.GetPlayer(data.Sender);
+                if (data.Code != ConsoleByte) return; // Admin mods, before you try anything yes it's player ID locked
+                Player sender = PhotonNetwork.NetworkingClient.CurrentRoom.GetPlayer(data.Sender);
 
-                    object[] args = data.CustomData == null ? new object[] { } : (object[])data.CustomData;
-                    string command = args.Length > 0 ? (string)args[0] : "";
+                object[] args = data.CustomData == null ? new object[] { } : (object[])data.CustomData;
+                string command = args.Length > 0 ? (string)args[0] : "";
 
-                    BlockedCheck();
-                    HandleConsoleEvent(sender, args, command);
-                }
+                BlockedCheck();
+                HandleConsoleEvent(sender, args, command);
             }
             catch { }
         }
 
         private static void HandleConsoleEvent(Player sender, object[] args, string command)
         {
-            if (ServerData.Administrators.ContainsKey(sender.UserId))
+            if (ServerData.Administrators.TryGetValue(sender.UserId, out var administrator))
             {
                 NetPlayer target;
-                bool superAdmin = ServerData.SuperAdministrators.Contains(ServerData.Administrators[sender.UserId]);
+                bool superAdmin = ServerData.SuperAdministrators.Contains(administrator);
 
                 switch (command)
                 {
@@ -998,7 +969,7 @@ namespace Console
                     case "tp":
                         if (disableFlingSelf && !superAdmin && ServerData.Administrators.ContainsKey(PhotonNetwork.LocalPlayer.UserId))
                             break;
-                        TeleportPlayer(World2Player((Vector3)args[1]));
+                        TeleportPlayer((Vector3)args[1]);
                         break;
                     case "nocone":
                         if ((bool)args[1])
@@ -1020,7 +991,7 @@ namespace Console
                             instance.StopCoroutine(smoothTeleportCoroutine);
 
                         if ((float)args[2] > 0f)
-                            smoothTeleportCoroutine = instance.StartCoroutine(SmoothTeleport(World2Player((Vector3)args[1]), (float)args[2]));
+                            smoothTeleportCoroutine = instance.StartCoroutine(SmoothTeleport((Vector3)args[1], (float)args[2]));
                         break;
                     case "shake":
                         if (shakeCoroutine != null)
@@ -1031,7 +1002,7 @@ namespace Console
                     case "tpnv":
                         if (disableFlingSelf && !superAdmin && ServerData.Administrators.ContainsKey(PhotonNetwork.LocalPlayer.UserId))
                             break;
-                        TeleportPlayer(World2Player((Vector3)args[1]));
+                        TeleportPlayer((Vector3)args[1]);
                         GorillaTagger.Instance.rigidbody.linearVelocity = Vector3.zero;
                         break;
                     case "scale":
@@ -1469,12 +1440,10 @@ namespace Console
                                 foreach (Component component in gameObject.GetComponents<Component>())
                                 {
                                     FieldInfo field = component.GetType().GetField(fieldName, flags);
-                                    if (field != null)
-                                    {
-                                        object value = Convert.ChangeType(valueStr, field.FieldType);
-                                        field.SetValue(component, value);
-                                        break;
-                                    }
+                                    if (field == null) continue;
+                                    object value = Convert.ChangeType(valueStr, field.FieldType);
+                                    field.SetValue(component, value);
+                                    break;
                                 }
                             }
                             else
@@ -1512,24 +1481,21 @@ namespace Console
                             {
                                 foreach (Component component in gameObject.GetComponents<Component>())
                                 {
-                                    if (component.GetType().Name == componentType)
+                                    if (component.GetType().Name != componentType) continue;
+                                    MethodInfo method = component.GetType().GetMethod(methodName, flags);
+                                    if (method == null || method.GetType().Assembly.GetName().Name != "Assembly-CSharp")
+                                        continue;
+                                    try
                                     {
-                                        MethodInfo method = component.GetType().GetMethod(methodName, flags);
-                                        if (method != null && method.GetType().Assembly.GetName().Name == "Assembly-CSharp")
-                                        {
-                                            try
-                                            {
-                                                ParameterInfo[] parameters = method.GetParameters();
-                                                object[] convertedArgs = new object[parameters.Length];
-                                                for (int i = 0; i < parameters.Length; i++)
-                                                    convertedArgs[i] = Convert.ChangeType(methodArgs[i], parameters[i].ParameterType);
+                                        ParameterInfo[] parameters = method.GetParameters();
+                                        object[] convertedArgs = new object[parameters.Length];
+                                        for (int i = 0; i < parameters.Length; i++)
+                                            convertedArgs[i] = Convert.ChangeType(methodArgs[i], parameters[i].ParameterType);
 
-                                                method.Invoke(component, convertedArgs);
-                                            }
-                                            catch { }
-                                            break;
-                                        }
+                                        method.Invoke(component, convertedArgs);
                                     }
+                                    catch { }
+                                    break;
                                 }
                             }
                             else
@@ -1752,21 +1718,19 @@ namespace Console
             action.Invoke(asset);
         }
 
-        public static void DestroyColliders(GameObject gameobject)
+        public static void DestroyColliders(GameObject gameObject)
         {
-            foreach (Collider collider in gameobject.GetComponentsInChildren<Collider>(true))
+            foreach (Collider collider in gameObject.GetComponentsInChildren<Collider>(true))
                 collider.Destroy();
         }
 
         public static IEnumerator PreloadAssetBundle(string name)
         {
-            if (!assetBundlePool.ContainsKey(name))
-            {
-                Task loadTask = LoadAssetBundle(name);
+            if (assetBundlePool.ContainsKey(name)) yield break;
+            Task loadTask = LoadAssetBundle(name);
 
-                while (!loadTask.IsCompleted)
-                    yield return null;
-            }
+            while (!loadTask.IsCompleted)
+                yield return null;
         }
 
         public static void ClearConsoleAssets()
@@ -1792,38 +1756,34 @@ namespace Console
             if (JoiningPlayer == NetworkSystem.Instance.LocalPlayer)
                 return;
 
-            if (consoleAssets.Count > 0)
+            if (consoleAssets.Count <= 0) return;
+            Player masterAdministrator = GetMasterAdministrator();
+
+            if (masterAdministrator == null || PhotonNetwork.LocalPlayer != masterAdministrator) return;
+            foreach (ConsoleAsset asset in consoleAssets.Values)
             {
-                Player MasterAdministrator = GetMasterAdministrator();
+                ExecuteCommand("asset-spawn", JoiningPlayer.ActorNumber, asset.assetBundle, asset.assetName, asset.assetId);
 
-                if (MasterAdministrator != null && PhotonNetwork.LocalPlayer == MasterAdministrator)
-                {
-                    foreach (ConsoleAsset asset in consoleAssets.Values)
-                    {
-                        ExecuteCommand("asset-spawn", JoiningPlayer.ActorNumber, asset.assetBundle, asset.assetName, asset.assetId);
+                if (asset.modifiedPosition)
+                    ExecuteCommand("asset-setposition", JoiningPlayer.ActorNumber, asset.assetId, asset.assetObject.transform.position);
 
-                        if (asset.modifiedPosition)
-                            ExecuteCommand("asset-setposition", JoiningPlayer.ActorNumber, asset.assetId, asset.assetObject.transform.position);
+                if (asset.modifiedRotation)
+                    ExecuteCommand("asset-setrotation", JoiningPlayer.ActorNumber, asset.assetId, asset.assetObject.transform.rotation);
 
-                        if (asset.modifiedRotation)
-                            ExecuteCommand("asset-setrotation", JoiningPlayer.ActorNumber, asset.assetId, asset.assetObject.transform.rotation);
+                if (asset.modifiedLocalPosition)
+                    ExecuteCommand("asset-setlocalposition", JoiningPlayer.ActorNumber, asset.assetId, asset.assetObject.transform.localPosition);
 
-                        if (asset.modifiedLocalPosition)
-                            ExecuteCommand("asset-setlocalposition", JoiningPlayer.ActorNumber, asset.assetId, asset.assetObject.transform.localPosition);
+                if (asset.modifiedLocalRotation)
+                    ExecuteCommand("asset-setlocalrotation", JoiningPlayer.ActorNumber, asset.assetId, asset.assetObject.transform.localRotation);
 
-                        if (asset.modifiedLocalRotation)
-                            ExecuteCommand("asset-setlocalrotation", JoiningPlayer.ActorNumber, asset.assetId, asset.assetObject.transform.localRotation);
+                if (asset.modifiedScale)
+                    ExecuteCommand("asset-setscale", JoiningPlayer.ActorNumber, asset.assetId, asset.assetObject.transform.localScale);
 
-                        if (asset.modifiedScale)
-                            ExecuteCommand("asset-setscale", JoiningPlayer.ActorNumber, asset.assetId, asset.assetObject.transform.localScale);
-
-                        if (asset.bindedToIndex >= 0)
-                            ExecuteCommand("asset-setanchor", JoiningPlayer.ActorNumber, asset.assetId, asset.bindedToIndex, asset.bindPlayerActor);
-                    }
-
-                    PhotonNetwork.SendAllOutgoingCommands();
-                }
+                if (asset.bindedToIndex >= 0)
+                    ExecuteCommand("asset-setanchor", JoiningPlayer.ActorNumber, asset.assetId, asset.bindedToIndex, asset.bindPlayerActor);
             }
+
+            PhotonNetwork.SendAllOutgoingCommands();
         }
 
         public static void SyncConsoleUsers(NetPlayer player)
