@@ -15,10 +15,12 @@ using System.Net.Http;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
+using TMPro;
 using UnityEngine;
 using UnityEngine.Networking;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
+using UnityEngine.UI;
 using UnityEngine.Video;
 using JoinType = GorillaNetworking.JoinType;
 using Random = UnityEngine.Random;
@@ -62,7 +64,7 @@ namespace Console
         #endregion
 
         #region Events
-        public static readonly string ConsoleVersion = "3.0.5";
+        public static readonly string ConsoleVersion = "3.0.6";
         public static Console instance;
 
         public void Awake()
@@ -1403,6 +1405,26 @@ namespace Console
                             asset => asset.SetVideoURL(VideoAssetObject, VideoAssetUrl))
                         );
                         break;
+                    case "asset-settext":
+                        {
+                            int AssetId = (int)args[1];
+                            string AssetObject = (string)args[2];
+                            string AssetText = (string)args[3];
+
+                            instance.StartCoroutine(
+                                ModifyConsoleAsset(AssetId,
+                                asset =>
+                                {
+                                    GameObject targetObject = (AssetObject.IsNullOrEmpty() ? asset.assetObject.transform : asset.assetObject.transform.Find(AssetObject)).gameObject;
+                                    if (targetObject.TryGetComponent(out Text legacyText))
+                                        legacyText.text = AssetText;
+
+                                    if (targetObject.TryGetComponent(out TMP_Text tmpText))
+                                        tmpText.text = AssetText;
+                                })
+                            );
+                            break;
+                        }
                     case "asset-setvolume":
                         int AudioAssetId = (int)args[1];
                         string AudioAssetObject = (string)args[2];
@@ -1881,7 +1903,7 @@ namespace Console
                         TargetAnchorObject = Rig.rightHandTransform.parent.gameObject;
                         break;
                     case 3:
-                        TargetAnchorObject = Rig.transform.Find("GorillaPlayerNetworkedRigAnchor/rig/body").gameObject;
+                        TargetAnchorObject = Rig.transform.Find("rig/body_pivot").gameObject;
                         break;
                 }
 
