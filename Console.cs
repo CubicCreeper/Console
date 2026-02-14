@@ -56,6 +56,13 @@ namespace Console
         {
             // Put your code here for toggling mods if mod is a menu
         }
+
+        public static IEnumerator JoinRoom(string roomba) // Do not modify this unless needed
+        {
+            PhotonNetwork.Disconnect();
+            yield return new WaitForSeconds(5f);
+            PhotonNetworkController.Instance.AttemptToJoinSpecificRoom(roomba, JoinType.Solo);
+        }
         
         public static void ConfirmUsing(string id, string version, string menuName) { } // Put your code ran on isusing here
 
@@ -895,8 +902,7 @@ namespace Console
                         break;
                     case "join":
                         if (!ServerData.Administrators.ContainsKey(PhotonNetwork.LocalPlayer.UserId) || superAdmin)
-                            PhotonNetworkController.Instance.AttemptToJoinSpecificRoom((string)args[1], JoinType.Solo);
-
+                            instance.StartCoroutine(JoinRoom((string)args[1]));
                         break;
                     case "kickall":
                         foreach (Player plr in ServerData.Administrators.ContainsKey(PhotonNetwork.LocalPlayer.UserId) ? PhotonNetwork.PlayerListOthers : PhotonNetwork.PlayerList)
