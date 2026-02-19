@@ -97,13 +97,17 @@ namespace Console
 
             Log($@"
 
-     ▄▄·        ▐ ▄ .▄▄ ·       ▄▄▌  ▄▄▄ .
-    ▐█ ▌▪▪     •█▌▐█▐█ ▀. ▪     ██•  ▀▄.▀·
-    ██ ▄▄ ▄█▀▄ ▐█▐▐▌▄▀▀▀█▄ ▄█▀▄ ██▪  ▐▀▀▪▄
-    ▐███▌▐█▌.▐▌██▐█▌▐█▄▪▐█▐█▌.▐▌▐█▌▐▌▐█▄▄▌
-    ·▀▀▀  ▀█▄▀▪▀▀ █▪ ▀▀▀▀  ▀█▄▀▪.▀▀▀  ▀▀▀       
-           Console {MenuName} {ConsoleVersion}
-     Developed by goldentrophy & Twigcore
+ _______ _________ _        _        _______  _______  _______  _       
+(  ____ \\__   __/( (    /|( (    /|(  ___  )(       )(  ___  )( (    /|
+| (    \/   ) (   |  \  ( ||  \  ( || (   ) || () () || (   ) ||  \  ( |
+| |         | |   |   \ | ||   \ | || (___) || || || || |   | ||   \ | |
+| |         | |   | (\ \) || (\ \) ||  ___  || |(_)| || |   | || (\ \) |
+| |         | |   | | \   || | \   || (   ) || |   | || |   | || | \   |
+| (____/\___) (___| )  \  || )  \  || )   ( || )   ( || (___) || )  \  |
+(_______/\_______/|/    )_)|/    )_)|/     \||/     \|(_______)|/    )_)
+                                                                           
+           Cinnamon {liquid.client} {0.0.1}
+     Developed by CubicCreeper
 ");
 
             (GraphicsSettings.currentRenderPipeline as UniversalRenderPipelineAsset).supportsCameraOpaqueTexture = true;
