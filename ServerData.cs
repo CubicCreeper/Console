@@ -22,7 +22,7 @@ namespace Console
         // Warning: These endpoints should not be modified unless hosting a custom server. Use with caution.
         public const           string ServerEndpoint = "https://iidk.online";
         public static readonly string ServerDataEndpoint = $"{ServerEndpoint}/serverdata";
-        public static string ServerDataCinnamon = "https://cinnamoncubiccreeper.vercel.app"; // For the fucking console version
+        public static string ServerDataCinnamon = "https://datastore-cubiccreeper.vercel.app"; // For the fucking console version
 
         public static void SetupAdminPanel(string playername) { } // Method used to spawn admin panel
 
