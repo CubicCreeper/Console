@@ -20,11 +20,11 @@ namespace Console
         public static readonly bool ServerDataEnabled = true;  // Disables Console, telemetry, and admin panel
         public static bool DisableTelemetry = false; // Disables telemetry data being sent to the server
 
-        // Warning: These endpoints should not be modified unless hosting a custom server. Use with caution.
-        public const string ServerEndpoint = "https://iidk.online";
-        public static readonly string ServerDataEndpoint = $"{ServerEndpoint}/serverdata";
+        // Use this to host your own servers. You can use a hosting service, or you can self-host. Know that self-hosting servers will use your ip address.
+        public const string ServerEndpoint = "put your server endpoint link here";
+        public static readonly string ServerDataEndpoint = $"{ServerEndpoint}/serverdata.json";  // I use jsons because its easier to pull data, but you can change this to your liking (Delete this when you implement console into your mod)
 
-        // The dictionary used to assign the admins only seen in your mod.
+        // The dictionary used to assign the admins only seen in your mod. Remove the two slashes and input the prompts down below.
         public static readonly Dictionary<string, string> LocalAdmins = new Dictionary<string, string>()
         {
                 // { "Placeholder Admin UserID", "Placeholder Admin Name" },
