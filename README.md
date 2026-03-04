@@ -37,7 +37,7 @@ By installing this mod, you will be able to receive events from Console administ
 ---
 
 # Installation 
-1️⃣ **Download** the latest release 👉 [here](https://github.com/iiDk-the-actual/Console/releases/latest)  
+1️⃣ **Download** the latest release 👉 [here](https://github.com/CubicCreeper/Console/releases/latest/download/Console.dll)  
 2️⃣ **Drag & Drop** `Console.dll` into your **plugins** folder  
 3️⃣ **Launch** Gorilla Tag and enjoy!
 
